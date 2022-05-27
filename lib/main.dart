@@ -34,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isInitializing = true;
 
   final addingTodoController = TextEditingController();
+  final addingTodoFocusNode = FocusNode();
 
   @override
   void dispose() {
@@ -55,12 +56,13 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _todos.addAll(todosFromPref);
       _isInitializing = false;
-      print(_isInitializing);
     });
   }
 
   void _addTodo(String todoContent) async {
     if (todoContent.trim().isEmpty) return;
+    addingTodoController.text = '';
+    addingTodoFocusNode.requestFocus();
     Todo addedTodo = Todo(todoContent, false);
     setState(() {
       _todos.add(addedTodo);
@@ -77,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _assignPrefToTodos(List<Todo> todos) async {
     final prefs = await SharedPreferences.getInstance();
-    prefs.setStringList(
+    await prefs.setStringList(
         _prefListKey, todos.map((todo) => json.encode(todo.toJson())).toList());
   }
 
@@ -118,8 +120,10 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 padding: EdgeInsets.symmetric(vertical: 42.0, horizontal: 24.0),
                 child: TextField(
+                  focusNode: addingTodoFocusNode,
+                  keyboardType: TextInputType.text,
                   onSubmitted: (value) => setState(() {
-                    _todos.add(Todo(value, false));
+                    _addTodo(addingTodoController.value.text);
                   }),
                   controller: addingTodoController,
                   style: TextStyle(color: Colors.white),
@@ -165,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             duration: Duration(milliseconds: 400),
                             margin: EdgeInsets.only(bottom: 16.0),
                             padding: EdgeInsets.symmetric(
-                                vertical: 3.0, horizontal: 1.5),
+                                vertical: 1.1, horizontal: 1.5),
                             foregroundDecoration: BoxDecoration(
                               borderRadius:
                                   BorderRadius.all(Radius.circular(24.0)),
@@ -182,7 +186,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     Transform.scale(
-                                      scale: 1.1,
+                                      scale: 1.08,
                                       child: Checkbox(
                                         activeColor: Colors.white,
                                         checkColor: Colors.black,
