@@ -1,8 +1,6 @@
 // ignore_for_file: prefer_const_constructors
 
-import 'dart:collection';
 import 'dart:convert';
-import 'package:uuid/uuid.dart';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,7 +12,6 @@ void main() {
 class MainApp extends StatelessWidget {
   const MainApp({Key? key}) : super(key: key);
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -31,7 +28,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final List<Todo> _todos = [Todo("not done", false), Todo("done", true)];
+  final String _prefListKey = "__todos_sujang";
+  final List<Todo> _todos = [];
+
+  bool _isInitializing = true;
 
   final addingTodoController = TextEditingController();
 
@@ -42,7 +42,74 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _setTodosFromPrefList();
+  }
+
+  void _setTodosFromPrefList() async {
+    setState(() {
+      _isInitializing = true;
+    });
+    final todosFromPref = await _getTodoFromPrefList();
+    setState(() {
+      _todos.addAll(todosFromPref);
+      _isInitializing = false;
+      print(_isInitializing);
+    });
+  }
+
+  void _addTodo(String todoContent) async {
+    if (todoContent.trim().isEmpty) return;
+    Todo addedTodo = Todo(todoContent, false);
+    setState(() {
+      _todos.add(addedTodo);
+    });
+    _addTodoToPrefList(addedTodo);
+  }
+
+  void _removeTodo(int index) async {
+    setState(() {
+      _todos.removeAt(index);
+      _assignPrefToTodos(_todos);
+    });
+  }
+
+  void _assignPrefToTodos(List<Todo> todos) async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setStringList(
+        _prefListKey, todos.map((todo) => json.encode(todo.toJson())).toList());
+  }
+
+  Future<List<Todo>> _getTodoFromPrefList() async {
+    final prefs = await SharedPreferences.getInstance();
+    final encodedTodos = prefs.getStringList(_prefListKey);
+    if (encodedTodos == null) return <Todo>[];
+    return encodedTodos
+        .map((encodedTodo) => json.decode(encodedTodo))
+        .map((decodedTodo) => Todo(decodedTodo['todo'], decodedTodo['checked']))
+        .toList();
+  }
+
+  void _addTodoToPrefList(Todo todo) async {
+    final prevs = await _getTodoFromPrefList();
+    prevs.add(todo);
+    _assignPrefToTodos(prevs);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isInitializing) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+            child: CircularProgressIndicator(
+          color: Colors.white,
+          backgroundColor: Colors.black,
+        )),
+      );
+    }
+
     return SafeArea(
       child: Scaffold(
           backgroundColor: Colors.black,
@@ -66,8 +133,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     suffixIcon: IconButton(
                       onPressed: () {
                         setState(() {
-                          _todos.add(
-                              Todo(addingTodoController.value.text, false));
+                          _addTodo(addingTodoController.value.text);
                         });
                       },
                       icon: Icon(
@@ -149,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 IconButton(
                                   onPressed: () {
                                     setState(() {
-                                      _todos.removeAt(index);
+                                      _removeTodo(index);
                                     });
                                   },
                                   icon: Icon(
@@ -171,63 +237,16 @@ class _HomeScreenState extends State<HomeScreen> {
 class Todo {
   String todo;
   bool checked;
-  String uid;
 
-  Todo(this.todo, this.checked, this.uid);
+  Todo(this.todo, this.checked);
 
   setChecked(bool checked) {
     this.checked = checked;
   }
-}
 
-class TodoList {
-  final String StorageKey = "__todos_sujang";
-  final uuid = Uuid();
-
-  final List<Todo> todos = [];
-  final Queue<Todo> todosWaitingToBeAdded = Queue();
-
-  bool unabledToEditTodos = true;
-
-  TodoList() {
-    loadTodosFromStorage();
+  toggleChecked() {
+    checked = !checked;
   }
 
-  loadTodosFromStorage() async {
-    unabledToEditTodos = true;
-    final list = await getListFromStorage();
-    todos.addAll(list.map((todo) => json.decode(todo) as Todo));
-    addWaitedTodosToStorage();
-    unabledToEditTodos = false;
-  }
-
-  addWaitedTodosToStorage() {
-    setPrefsToList(todosWaitingToBeAdded
-        .toList()
-        .map((waitedTodo) => json.encode(waitedTodo))
-        .toList());
-  }
-
-  add(String todo) async {
-    Todo addedTodo = Todo(todo, false);
-    todos.add(addedTodo);
-    final prevs = await getListFromStorage();
-    final encodedAddedTodo = json.encode(addedTodo);
-    prevs.add(encodedAddedTodo);
-    setPrefsToList(prevs);
-  }
-
-  remove(int index) {
-    todos.removeAt(index);
-  }
-
-  Future<List<String>> getListFromStorage() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getStringList(StorageKey) ?? <String>[];
-  }
-
-  setPrefsToList(List<String> list) async {
-    final prefs = await SharedPreferences.getInstance();
-    prefs.setStringList(StorageKey, list);
-  }
+  Map<String, dynamic> toJson() => {"todo": todo, "checked": checked};
 }
