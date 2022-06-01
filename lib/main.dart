@@ -1,7 +1,8 @@
-// ignore_for_file: prefer_const_constructors
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 
 import 'dart:convert';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -16,6 +17,7 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: ThemeData(fontFamily: "Pretendard"),
+      themeMode: ThemeMode.dark,
       initialRoute: '/',
       routes: {'/': (context) => HomeScreen()},
     );
@@ -33,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _isInitializing = true;
 
+  final editingTodoController = TextEditingController();
   final addingTodoController = TextEditingController();
   final addingTodoFocusNode = FocusNode();
 
@@ -73,6 +76,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void _removeTodo(int index) async {
     setState(() {
       _todos.removeAt(index);
+      _assignPrefToTodos(_todos);
+    });
+  }
+
+  void _updateTodo(int index, String newTodo) async {
+    setState(() {
+      final prev = _todos.removeAt(index);
+      _todos.insert(index, Todo(newTodo, prev.checked));
       _assignPrefToTodos(_todos);
     });
   }
@@ -164,72 +175,125 @@ class _HomeScreenState extends State<HomeScreen> {
                       itemCount: _todos.length,
                       itemBuilder: (context, index) {
                         final todo = _todos.elementAt(index);
-                        return AnimatedContainer(
-                            curve: Curves.easeInOut,
-                            duration: Duration(milliseconds: 400),
-                            margin: EdgeInsets.only(bottom: 16.0),
-                            padding: EdgeInsets.symmetric(
-                                vertical: 1.1, horizontal: 1.5),
-                            foregroundDecoration: BoxDecoration(
-                              borderRadius:
-                                  BorderRadius.all(Radius.circular(24.0)),
-                              backgroundBlendMode: BlendMode.exclusion,
-                              color: todo.checked
-                                  ? Colors.grey[900]
-                                  : Colors.transparent,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Row(
+                        return CupertinoContextMenu(
+                            actions: [
+                              CupertinoContextMenuAction(
+                                trailingIcon:
+                                    CupertinoIcons.pencil_ellipsis_rectangle,
+                                child: const Text("Edit"),
+                                onPressed: () {
+                                  showCupertinoDialog(
+                                      context: context,
+                                      builder: (context) {
+                                        editingTodoController.text = todo.todo;
+                                        return CupertinoAlertDialog(
+                                          title: Padding(
+                                              padding:
+                                                  EdgeInsets.only(bottom: 6.0),
+                                              child: Text("Editing")),
+                                          content: CupertinoTextField(
+                                            controller: editingTodoController,
+                                            onSubmitted: (value) =>
+                                                _updateTodo(index, value),
+                                          ),
+                                          actions: [
+                                            CupertinoDialogAction(
+                                              isDestructiveAction: true,
+                                              onPressed: () {
+                                                Navigator.pop(context);
+                                                Navigator.pop(context);
+                                              },
+                                              child: Text("Cancel"),
+                                            ),
+                                            CupertinoDialogAction(
+                                                onPressed: () {
+                                                  _updateTodo(
+                                                      index,
+                                                      editingTodoController
+                                                          .text);
+                                                  Navigator.pop(context);
+                                                  Navigator.pop(context);
+                                                },
+                                                child: Text("Edit"))
+                                          ],
+                                        );
+                                      });
+                                },
+                              ),
+                              CupertinoContextMenuAction(
+                                isDestructiveAction: true,
+                                trailingIcon: CupertinoIcons.delete,
+                                child: const Text("Delete"),
+                                onPressed: () {
+                                  setState(() {
+                                    _removeTodo(index);
+                                  });
+                                  Navigator.pop(context);
+                                },
+                              )
+                            ],
+                            child: SingleChildScrollView(
+                              child: AnimatedContainer(
+                                curve: Curves.easeInOut,
+                                duration: Duration(milliseconds: 400),
+                                margin: EdgeInsets.only(bottom: 16.0),
+                                padding: EdgeInsets.symmetric(
+                                    vertical: 1.1, horizontal: 1.5),
+                                foregroundDecoration: BoxDecoration(
+                                  borderRadius:
+                                      BorderRadius.all(Radius.circular(24.0)),
+                                  backgroundBlendMode: BlendMode.exclusion,
+                                  color: todo.checked
+                                      ? Colors.grey[900]
+                                      : Colors.transparent,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    Transform.scale(
-                                      scale: 1.08,
-                                      child: Checkbox(
-                                        activeColor: Colors.white,
-                                        checkColor: Colors.black,
-                                        side: BorderSide(
-                                          color: Colors.white,
-                                          style: BorderStyle.solid,
-                                          width: 1.5,
-                                        ),
-                                        shape: CircleBorder(),
-                                        value: todo.checked,
-                                        onChanged: (checkboxChecked) {
-                                          if (checkboxChecked == null) return;
-                                          setState(() {
-                                            todo.setChecked(checkboxChecked);
-                                          });
-                                        },
-                                      ),
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        Transform.scale(
+                                            scale: 1.08,
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              child: Checkbox(
+                                                activeColor: Colors.white,
+                                                checkColor: Colors.black,
+                                                side: BorderSide(
+                                                  color: Colors.white,
+                                                  style: BorderStyle.solid,
+                                                  width: 1.5,
+                                                ),
+                                                shape: CircleBorder(),
+                                                value: todo.checked,
+                                                onChanged: (checkboxChecked) {
+                                                  if (checkboxChecked == null)
+                                                    return;
+                                                  setState(() {
+                                                    todo.setChecked(
+                                                        checkboxChecked);
+                                                  });
+                                                },
+                                              ),
+                                            )),
+                                        Text(
+                                          todo.todo,
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 18.0,
+                                              decoration: todo.checked
+                                                  ? TextDecoration.lineThrough
+                                                  : TextDecoration.none),
+                                        )
+                                      ],
                                     ),
-                                    Text(
-                                      todo.todo,
-                                      style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 18.0,
-                                          decoration: todo.checked
-                                              ? TextDecoration.lineThrough
-                                              : TextDecoration.none),
-                                    )
                                   ],
                                 ),
-                                IconButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _removeTodo(index);
-                                    });
-                                  },
-                                  icon: Icon(
-                                    Icons.delete_forever_rounded,
-                                    color: Colors.white,
-                                    size: 24.0,
-                                  ),
-                                  splashColor: Colors.transparent,
-                                )
-                              ],
+                              ),
                             ));
                       }))
             ],
