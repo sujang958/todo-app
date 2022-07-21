@@ -15,7 +15,5 @@ void main() {
     await tester.pumpWidget(const MainApp());
 
     expect(find.byType(TextField), findsOneWidget);
-
-
   });
 }
