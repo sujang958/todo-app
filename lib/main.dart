@@ -4,6 +4,8 @@ import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:reorderables/reorderables.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -43,6 +45,7 @@ class MainApp extends StatelessWidget {
       themeMode: ThemeMode.system,
       initialRoute: '/',
       routes: {'/': (context) => HomeScreen()},
+      locale: Locale("en"),
     );
   }
 }
@@ -57,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Todo> _todos = [];
 
   bool _isInitializing = true;
+  Map<int, bool> _todosEditingMap = {};
 
   final editingTodoController = TextEditingController();
   final addingTodoController = TextEditingController();
@@ -81,7 +85,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final todosFromPref = await _getTodoFromPrefList();
     setState(() {
       _todos.addAll(todosFromPref);
+      _setTodosEditingMap();
       _isInitializing = false;
+    });
+  }
+
+  void _setTodosEditingMap() {
+    setState(() {
+      _todos.asMap().entries.map((e) {
+        _todosEditingMap[e.key] = false;
+      });
     });
   }
 
@@ -92,6 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Todo addedTodo = Todo(todoContent, false);
     setState(() {
       _todos.add(addedTodo);
+      _setTodosEditingMap();
     });
     _addTodoToPrefList(addedTodo);
   }
@@ -99,16 +113,18 @@ class _HomeScreenState extends State<HomeScreen> {
   void _removeTodo(int index) async {
     setState(() {
       _todos.removeAt(index);
+      _setTodosEditingMap();
       _assignPrefToTodos(_todos);
     });
   }
 
   void _updateTodo(int index, String newTodo) async {
-    setState(() {
+    // setState(() {
       final prev = _todos.removeAt(index);
       _todos.insert(index, Todo(newTodo, prev.checked));
+    _setTodosEditingMap();
       _assignPrefToTodos(_todos);
-    });
+    // });
   }
 
   void _assignPrefToTodos(List<Todo> todos) async {
@@ -151,6 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
           child: Column(
+            textDirection: TextDirection.ltr,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CupertinoTextField(
@@ -168,104 +185,147 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: EdgeInsets.symmetric(vertical: 8.0),
               ),
               Expanded(
-                child: ReorderableListView.builder(
-                    onReorder: ((oldIndex, newIndex) {
-                      setState(() {
-                        if (oldIndex < newIndex) {
-                          newIndex -= 1;
-                        }
-                        final item = _todos.removeAt(oldIndex);
-                        _todos.insert(newIndex, item);
-                        _assignPrefToTodos(_todos);
-                      });
-                    }),
-                    itemCount: _todos.length,
-                    physics: BouncingScrollPhysics(),
-                    itemBuilder: (context, index) {
-                      final todo = _todos.elementAt(index);
-                      return ListTile(
-                        horizontalTitleGap: 4.0,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 0.0, vertical: 1.0),
-                        leading: Checkbox(
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(4.0)),
-                          value: todo.checked,
-                          onChanged: (checked) => setState(() {
-                            todo.setChecked(checked ?? !todo.checked);
-                          }),
-                        ),
-                        title: Text(
-                          todo.todo,
-                          style: TextStyle(
-                              decoration: todo.checked
-                                  ? TextDecoration.lineThrough
-                                  : TextDecoration.none),
-                        ),
-                        key: Key(todo.hashCode.toString()),
-                        trailing: IconButton(
-                            icon: const Icon(CupertinoIcons.line_horizontal_3),
-                            onPressed: () => showCupertinoModalPopup(
-                                context: context,
-                                builder: (context) => CupertinoActionSheet(
-                                      actions: [
-                                        CupertinoActionSheetAction(
-                                            onPressed: () {
-                                              Navigator.pop(context);
-                                              showCupertinoDialog(
-                                                  context: context,
-                                                  builder: (context) {
-                                                    editingTodoController.text =
-                                                        todo.todo;
-                                                    return CupertinoAlertDialog(
-                                                      title: const Text(
-                                                          "Editing todo"),
-                                                      content:
-                                                          CupertinoTextField(
-                                                        controller:
-                                                            editingTodoController,
-                                                      ),
-                                                      actions: [
-                                                        CupertinoDialogAction(
-                                                            onPressed: () =>
-                                                                Navigator.pop(
-                                                                    context),
-                                                            isDestructiveAction:
-                                                                true,
-                                                            child:
-                                                                Text("Cancel")),
-                                                        CupertinoDialogAction(
-                                                            onPressed: () {
-                                                              _updateTodo(
-                                                                  index,
-                                                                  editingTodoController
-                                                                      .text);
-                                                              Navigator.pop(
-                                                                  context);
-                                                            },
-                                                            child: Text("Edit"))
-                                                      ],
-                                                    );
-                                                  });
-                                            },
-                                            child: const Text("Edit")),
-                                        CupertinoActionSheetAction(
-                                          onPressed: () {
-                                            _removeTodo(index);
-                                            Navigator.pop(context);
-                                          },
-                                          isDestructiveAction: true,
-                                          child: const Text("Delete"),
-                                        )
-                                      ],
-                                      cancelButton: CupertinoActionSheetAction(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: const Text("Cancel"),
-                                      ),
-                                    ))),
-                      );
-                    }),
-              )
+                  child: ReorderableListView.builder(
+                      onReorder: ((oldIndex, newIndex) {
+                        setState(() {
+                          if (oldIndex < newIndex) {
+                            newIndex -= 1;
+                          }
+                          final item = _todos.removeAt(oldIndex);
+                          _todos.insert(newIndex, item);
+                          _assignPrefToTodos(_todos);
+                        });
+                      }),
+                      itemCount: _todos.length,
+                      physics: BouncingScrollPhysics(),
+                      itemBuilder: (context, index) {
+                        final todo = _todos.elementAt(index);
+                        final textController =
+                            TextEditingController(text: todo.todo);
+
+                        textController.addListener(() {
+                          _updateTodo(index, textController.text);
+                        });
+
+                        return Padding(
+                            key: Key(index.toString()),
+                          padding: const EdgeInsets.symmetric(vertical: 6.0),
+                          child: Slidable(
+                                startActionPane: ActionPane(
+                                  motion: BehindMotion(),
+                                  children: [
+                                    SlidableAction(
+                                      onPressed: (context) {
+                                        setState(() {
+                                          todo.setChecked(!todo.checked);
+                                          _assignPrefToTodos(_todos);
+                                        });
+                                      },
+                                      icon: todo.checked
+                                          ? Icons.check_box
+                                          : Icons.check_box_outline_blank,
+                                      backgroundColor: todo.checked
+                                          ? Color.fromARGB(255, 47, 235, 84)
+                                          : Color.fromARGB(255, 173, 177, 182),
+                                      foregroundColor: Colors.white,
+                                    )
+                                  ],
+                                ),
+                                endActionPane: ActionPane(
+                                  motion: BehindMotion(),
+                                  children: [
+                                    SlidableAction(
+                                      onPressed: (context) {
+                                        showCupertinoModalPopup(
+                                            context: context,
+                                            builder: (context) =>
+                                                CupertinoAlertDialog(
+                                                  title: Text("For sure?"),
+                                                  actions: [
+                                                    CupertinoDialogAction(
+                                                        onPressed: () {
+                                                          _removeTodo(index);
+                                                          Navigator.pop(
+                                                              context);
+                                                        },
+                                                        isDestructiveAction:
+                                                            true,
+                                                        child: Text("Yup")),
+                                                    CupertinoDialogAction(
+                                                        onPressed: () =>
+                                                            Navigator.pop(
+                                                                context),
+                                                        child: Text("Nah")),
+                                                  ],
+                                                ));
+                                      },
+                                      icon: CupertinoIcons.delete_left,
+                                      backgroundColor: Colors.red.shade700,
+                                      foregroundColor: Colors.white,
+                                    )
+                                  ],
+                                ),
+                            child: CupertinoTextField(
+                              enabled: _todosEditingMap[index] ?? true,
+                                  style: TextStyle(
+                                decoration: todo.checked
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                              ),
+                              onTap: () {
+                                print("tap");
+                                final editingState = _todosEditingMap[index];
+                                if (editingState == null) return;
+                                setState(() {
+                                  _todosEditingMap[index] = !editingState;
+                                });
+                              },
+                              controller: textController,
+                              textDirection: TextDirection.ltr,
+                                  minLines: 1,
+                                  maxLines: 4,
+                                  padding: EdgeInsets.symmetric(
+                                      vertical: 14.0, horizontal: 8.0),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(13.0),
+                                border: Border.all(
+                                    color: Colors.grey.shade300, width: 1.2),
+                              ),
+                            ),
+                          ),
+                        );
+                        // return ListTile(
+                        //   shape: RoundedRectangleBorder(
+                        //       borderRadius: BorderRadius.circular(30)),
+                        //   horizontalTitleGap: 4.0,
+                        //   contentPadding: const EdgeInsets.symmetric(
+                        //       horizontal: 0.0, vertical: 1.0),
+                        //   leading: Container(
+                        //       height: double.infinity,
+                        //       child: Checkbox(
+                        //     shape: RoundedRectangleBorder(
+                        //         borderRadius: BorderRadius.circular(4.0)),
+                        //     value: todo.checked,
+                        //     onChanged: (checked) => setState(() {
+                        //       todo.setChecked(checked ?? !todo.checked);
+                        //     }),
+                        //   )),
+                        //   // title: Text(
+                        //   //   todo.todo,
+                        //   //   style: TextStyle(
+                        //   //       decoration: todo.checked
+                        //   //           ? TextDecoration.lineThrough
+                        //   //           : TextDecoration.none),
+                        //   // ),
+                        //   title: CupertinoTextField(
+                        //     minLines: 1,
+                        //     maxLines: 4,
+                        //     controller:
+                        //         TextEditingController(text: "hello\nhello"),
+                        //   ),
+                        //   key: Key(todo.hashCode.toString()),
+                        // );
+                      })),
             ],
           ),
         ),
